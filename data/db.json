@@ -1,0 +1,1 @@
+{"rooms": [{"capacity": 12, "booked": false, "equipment": [], "id": 1}, {"capacity": 12, "booked": true, "equipment": ["air conditioner"], "id": 2}, {"booked": true, "capacity": 4, "equipment": ["bed"], "id": 3}], "rooms_id": 3}
