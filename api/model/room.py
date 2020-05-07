@@ -27,6 +27,6 @@ class Room(object):
 
                 errors[attr] = "{} type must be {}".format(
                     attr, self.field_types[attr].__name__)
-        print(errors)
+
         if len(errors) > 0:
             raise ValidationError(errors=errors)
