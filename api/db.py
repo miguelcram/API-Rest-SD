@@ -1,42 +1,16 @@
 import json
 import os
-import signal
-import sys
-from threading import Thread
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, List
 
 
 class JsonDB(object):
     key_string_error = TypeError('Key/name must be a string!')
 
-    def __init__(self, location: str, auto_dump=True, sig=True):
+    def __init__(self, location: str, auto_dump=True):
         '''Creates a database object and loads the data from the location path.
         If the file does not exist it will be created on the first update.
         '''
         self.load(location, auto_dump)
-        self.dthread = None
-        if sig:
-            self.set_sigterm_handler()
-
-    def __getitem__(self, item: str) -> Any:
-        '''Syntax sugar for get()'''
-        return self.get(item)
-
-    def __setitem__(self, key: str, value: Any) -> bool:
-        '''Sytax sugar for set()'''
-        return self.set(key, value)
-
-    def __delitem__(self, key: str) -> bool:
-        '''Sytax sugar for rem()'''
-        return self.rem(key)
-
-    def set_sigterm_handler(self) -> None:
-        '''Assigns sigterm_handler for graceful shutdown during dump()'''
-        def sigterm_handler():
-            if self.dthread is not None:
-                self.dthread.join()
-            sys.exit(0)
-        signal.signal(signal.SIGTERM, sigterm_handler)
 
     def load(self, location: str, auto_dump: bool) -> True:
         '''Loads, reloads or changes the path to the db file'''
@@ -53,11 +27,6 @@ class JsonDB(object):
         '''Force dump memory db to file'''
         with open(self.loco, 'wt') as file:
             json.dump(self.db, file)
-        self.dthread = Thread(
-            target=json.dump,
-            args=(self.db, open(self.loco, 'wt')))
-        self.dthread.start()
-        self.dthread.join()
         return True
 
     def _loaddb(self) -> None:
@@ -93,176 +62,38 @@ class JsonDB(object):
         except KeyError:
             return None
 
-    def getall(self) -> List[str]:
-        '''Return a list of all keys in db'''
-        return self.db.keys()
-
-    def exists(self, key: str) -> bool:
-        '''Return True if key exists in db, return False if not'''
-        return key in self.db
-
-    def rem(self, key: str) -> bool:
-        '''Delete a key'''
-        if key not in self.db:
-            return False
-        del self.db[key]
-        self._autodumpdb()
-        return True
-
-    def totalkeys(self, name=None) -> int:
-        '''Get a total number of keys, lists, and dicts inside the db'''
-        if name is None:
-            total = len(self.db)
-            return total
-        else:
-            total = len(self.db[name])
-            return total
-
-    def append(self, key: str, more: List[Any]) -> True:
-        '''Add more to a key's value'''
-        tmp = self.db[key]
-        self.db[key] = tmp + more
-        self._autodumpdb()
-        return True
-
-    def lcreate(self, name: str) -> True:
-        '''Create a list, name must be str'''
-        if isinstance(name, str):
-            self.db[name] = []
-            self.db[name+"_id"] = 0
+    def insert_document(self, collection: str, document: Any) -> int:
+        ''' Insert Document into collection an returns an id'''
+        document = document.__dict__
+        if collection not in self.db:
+            self.db[collection] = {}
+            self.db[collection + '_id'] = 1
+        self.db[collection + '_id'] += 1
+        document['id'] = self.db[collection + '_id']
+        self.db[collection][document['id']] = document
+        if self.auto_dump:
             self._autodumpdb()
-            return True
-        else:
-            raise self.key_string_error
+        return document['id']
 
-    def ladd(self, name: str, value: Any) -> int:
-        '''Add a value to a list'''
-        if not self.exists(name):
-            self.lcreate(name)
-        self.db[name+"_id"] += 1
-        value["id"] = self.db[name+"_id"]
-        self.db[name].append(value)
-        self._autodumpdb()
-        return self.db[name+"_id"]
+    def documents(self, collection: str) -> List[Any]:
+        if collection in self.db:
+            return list(self.db[collection].values())
+        return []
 
-    def lextend(self, name: str, seq: List[Any]) -> True:
-        '''Extend a list with a sequence'''
-        self.db[name].extend(seq)
-        self._autodumpdb()
-        return True
+    def find_document_by_id(self, collection: str, id: str) -> Any:
+        return self.db[collection][id]
 
-    def lgetall(self, name: str) -> List[Any]:
-        '''Return all values in a list'''
-        return self.db[name]
+    def find_document_by(
+            self, collection: str, func: Callable[[Any], Any]) -> List[Any]:
+        return list(filter(func, self.db[collection].values()))
 
-    def lget(self, name: str, pos: int) -> Any:
-        '''Return one value in a list'''
-        return self.db[name][pos]
-
-    def lrange(self, name: str, start=None, end=None) -> List[Any]:
-        '''Return range of values in a list '''
-        return self.db[name][start:end]
-
-    def lremlist(self, name: str) -> int:
-        '''Remove a list and all of its values'''
-        number = len(self.db[name])
-        del self.db[name]
-        self._autodumpdb()
-        return number
-
-    def lremvalue(self,
-                  name: str, value: Any, callback=lambda v: lambda x: v == x):
-        '''Remove a value from a certain list'''
-        initial = self.llen(name)
-        self.db[name] = filter(callback(value), self.db[name])
-        after = self.llen(name)
-        self.db[name+"_id"] = self.db[name+"_id"] + (initial-after)
-        self._autodumpdb()
-        return True
-
-    def lpop(self, name: str, pos: int) -> Any:
-        '''Remove one value in a list'''
-        value = self.db[name][pos]
-        del self.db[name][pos]
-        self._autodumpdb()
-        return value
-
-    def llen(self, name: str) -> int:
-        '''Returns the length of the list'''
-        return len(self.db[name])
-
-    def lappend(self, name: str, pos: int, more: Any) -> True:
-        '''Add more to a value in a list'''
-        tmp = self.db[name][pos]
-        self.db[name][pos] = tmp + more
-        self._autodumpdb()
-        return True
-
-    def lexists(self, name: str, value: Any) -> bool:
-        '''Determine if a value  exists in a list'''
-        return value in self.db[name]
-
-    def dcreate(self, name: str) -> True:
-        '''Create a dict, name must be str'''
-        if isinstance(name, str):
-            self.db[name] = {}
+    def update_document_by(self, collection, id, document) -> Any:
+        self.db[collection][id].update(document)
+        if self.auto_dump:
             self._autodumpdb()
-            return True
-        else:
-            raise self.key_string_error
+        return self.db[collection][id]
 
-    def dadd(self, name: str, pair: Tuple[str, Any]) -> True:
-        '''Add a key-value pair to a dict, "pair" is a tuple'''
-        self.db[name][pair[0]] = pair[1]
-        self._autodumpdb()
-        return True
-
-    def dget(self, name: str, key: str) -> Any:
-        '''Return the value for a key in a dict'''
-        return self.db[name][key]
-
-    def dgetall(self, name: str) -> Dict[str, Any]:
-        '''Return all key-value pairs from a dict'''
-        return self.db[name]
-
-    def drem(self, name: str) -> True:
-        '''Remove a dict and all of its pairs'''
-        del self.db[name]
-        self._autodumpdb()
-        return True
-
-    def dpop(self, name: str, key: str) -> Any:
-        '''Remove one key-value pair in a dict'''
-        value = self.db[name][key]
-        del self.db[name][key]
-        self._autodumpdb()
-        return value
-
-    def dkeys(self, name: str) -> List[str]:
-        '''Return all the keys for a dict'''
-        return self.db[name].keys()
-
-    def dvals(self, name: str) -> List[Any]:
-        '''Return all the values for a dict'''
-        return self.db[name].values()
-
-    def dexists(self, name: str, key: str) -> bool:
-        '''Determine if a key exists or not in a dict'''
-        return key in self.db[name]
-
-    def dmerge(self, name1: str, name2: str) -> True:
-        '''Merge two dicts together into name1'''
-        first = self.db[name1]
-        second = self.db[name2]
-        first.update(second)
-        self._autodumpdb()
-        return True
-
-    def deldb(self) -> True:
-        '''Delete everything from the database'''
-        self.db = {}
-        self._autodumpdb()
-        return True
-
-
-__all__ = ["JsonDB"]
+    def delete_document_by(self, collection, id) -> None:
+        del self.db[collection][id]
+        if self.auto_dump:
+            self._autodumpdb()

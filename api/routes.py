@@ -1,32 +1,34 @@
-from typing import Any, List
-
 from api.db import JsonDB
 from api.exeptions import NotFound
-from bottle import delete, get, post, put, request, response
 from api.model.room import Room
-
-
-def find_room_by_id(id: str, rooms: List[Any]):
-    room = next(filter(lambda room: room["id"] == int(id), rooms), None)
-    if room is None:
-        raise NotFound
-    return room
+from api.utils import str2bool
+from bottle import delete, get, post, put, request, response
 
 
 @get("/rooms")
 def list_room(jsondb: JsonDB):
-    return dict(data=jsondb.lgetall("rooms"))
+    if "booked" in request.query:
+        res = jsondb.find_document_by(
+            "rooms",
+            lambda room: room['booked'] == str2bool(request.query.booked)
+        )
+        print(res)
+        return dict(data=res)
+    return dict(data=jsondb.documents("rooms"))
 
 
 @get("/rooms/<id>")
 def get_room(id: str, jsondb: JsonDB):
-    return find_room_by_id(id, jsondb.lgetall("rooms"))
+    try:
+        return jsondb.find_document_by_id("rooms", id)
+    except KeyError:
+        raise NotFound
 
 
 @post("/rooms")
 def create_room(jsondb: JsonDB):
-    data = Room(**request.json)
-    id = jsondb.ladd("rooms", data.__dict__)
+    room = Room(**request.json)
+    id = jsondb.insert_document("rooms", room)
     response.status = 201
 
     return {'id': id}
@@ -34,25 +36,20 @@ def create_room(jsondb: JsonDB):
 
 @put("/rooms/<id>")
 def update_room(id: str, jsondb: JsonDB):
-    # data = request.json
-    rooms = jsondb.lgetall("rooms")
-    room = next(filter(lambda room: room["id"] == int(id), rooms), None)
-    if room is None:
+    try:
+        data = request.json
+        Room.validate_update(**data)
+        updated = jsondb.update_document_by("rooms", id, data)
+        response.status = 200
+        return updated
+    except KeyError:
         raise NotFound
-    return room
 
 
 @delete("/rooms/<id>")
 def delete_room(id: str, jsondb: JsonDB):
-    rooms = jsondb.lgetall("rooms")
-    room = find_room_by_id(id, rooms)
-    return room
-
-
-@get("/rooms/state")
-def empty_rooms():
-    pass
-
-
-__all__ = ["list_room", "get_room",
-           "create_room", "update_room", "empty_rooms"]
+    try:
+        jsondb.delete_document_by("rooms", id)
+        response.status = 204
+    except KeyError:
+        raise NotFound

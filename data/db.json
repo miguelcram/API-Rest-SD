@@ -1,1 +1,30 @@
-{"rooms": [{"capacity": 12, "booked": false, "equipment": [], "id": 1}, {"capacity": 12, "booked": true, "equipment": ["air conditioner"], "id": 2}, {"booked": true, "capacity": 4, "equipment": ["bed"], "id": 3}], "rooms_id": 3}
+{
+    "rooms": {
+        "1": {
+            "booked": false,
+            "capacity": 4,
+            "equipment": [
+                "bed",
+                "air conditioner"
+            ],
+            "id": 1
+        },
+        "2": {
+            "booked": false,
+            "capacity": 2,
+            "equipment": [
+                "air conditioner"
+            ],
+            "id": 2
+        },
+        "4": {
+            "booked": false,
+            "capacity": 8,
+            "equipment": [
+                "air conditioner"
+            ],
+            "id": 4
+        }
+    },
+    "rooms_id": 4
+}
