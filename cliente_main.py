@@ -7,7 +7,7 @@ ops = """Elige que opcion deseas ralizar:
     5. Consultar la lista de habitaciones ocupadas o desocupadas
     6. Salir"""
 
-print(inicio.center(136, '-'),)
-
+print(inicio.center(150, '='),)
 print(ops)
+
 items = {'1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6}
