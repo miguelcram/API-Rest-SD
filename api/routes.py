@@ -50,6 +50,7 @@ def update_room(id: str, jsondb: JsonDB):
 def delete_room(id: str, jsondb: JsonDB):
     try:
         jsondb.delete_document_by("rooms", id)
-        response.status = 204
+
+        return {'id': id}
     except KeyError:
         raise NotFound
